@@ -1431,6 +1431,12 @@ function init() {
     setupEventListeners();
 
     updateUI();
+
+    document.getElementById('version').textContent = `v${getVersion()}`;
+}
+
+function getVersion() {
+    return "1.0.0";
 }
 
 window.removeBatchFile = removeBatchFile;
