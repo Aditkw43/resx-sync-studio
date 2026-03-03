@@ -1,81 +1,492 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
-    <title>RESX Batch Sync Tool</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
-
+    <title>RESX Sync Studio</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+        rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        display: ['Space Grotesk', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        bg: {
+                            primary: '#08090b',
+                            secondary: '#0f1114',
+                            tertiary: '#161a1f',
+                            elevated: '#1e2329',
+                        },
+                        fg: {
+                            primary: '#e4e6e9',
+                            secondary: '#9398a0',
+                            muted: '#5c6168',
+                            dim: '#3d4147',
+                        },
+                        accent: {
+                            DEFAULT: '#22d3a8',
+                            dim: '#1ab892',
+                            glow: 'rgba(34, 211, 168, 0.12)',
+                        },
+                        status: {
+                            added: '#3b9eff',
+                            updated: '#f0a030',
+                            filled: '#a78bfa',
+                            skip: '#6b7280',
+                            error: '#f87171',
+                        },
+                        border: {
+                            DEFAULT: '#252a31',
+                            active: '#363d46',
+                            highlight: '#454d57',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
     <link rel="stylesheet" href="style.css">
 </head>
-<body>
 
-<div class="container">
+<body class="min-h-screen bg-pattern">
+    <div class="grid-overlay min-h-screen flex flex-col">
+        <!-- Header -->
+        <header class="border-b border-border sticky top-0 z-40 bg-bg-primary/80 backdrop-blur-xl">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div
+                            class="w-9 h-9 rounded-lg bg-gradient-to-br from-accent to-accent-dim flex items-center justify-center shadow-lg shadow-accent/20">
+                            <svg class="w-5 h-5 text-bg-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                    d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h1 class="font-display font-semibold text-fg-primary tracking-tight">RESX Sync Studio</h1>
+                            <p class="text-xs text-fg-muted">Localization Synchronization Platform</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span
+                            class="hidden sm:inline-flex px-2 py-0.5 text-xs font-mono bg-bg-tertiary rounded text-fg-secondary border border-border">v2.0</span>
+                        <span
+                            class="px-2 py-0.5 text-xs font-mono bg-accent-glow rounded text-accent border border-accent/20">Client-Side</span>
+                    </div>
+                </div>
+            </div>
+        </header>
 
-    <div class="header">
-        <h1>RESX Batch Sync Tool</h1>
-        <p>Drag multiple files and auto match by filename.</p>
+        <main class="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 w-full">
+            <!-- Hero Section -->
+            <section class="mb-10 animate-fade-up">
+                <div class="max-w-3xl">
+                    <h2 class="font-display font-bold text-3xl sm:text-4xl text-fg-primary mb-3 tracking-tight">
+                        Synchronize Resources with Precision
+                    </h2>
+                    <p class="text-base sm:text-lg text-fg-secondary leading-relaxed">
+                        A configurable synchronization engine with granular preview control.
+                        Batch pair files, review every change, and apply only what you approve.
+                    </p>
+                </div>
+            </section>
+
+            <!-- File Upload Section -->
+            <section class="mb-6 animate-fade-up stagger-1" id="upload-section">
+                <div class="bg-bg-secondary rounded-2xl border border-border overflow-hidden">
+                    <!-- Section Header -->
+                    <div class="px-5 py-4 border-b border-border bg-bg-tertiary/50">
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                                <h3 class="font-display font-semibold text-lg text-fg-primary">File Pairs</h3>
+                                <p class="text-sm text-fg-muted mt-0.5">Add source and target RESX files for
+                                    synchronization</p>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button id="addPairBtn"
+                                    class="btn-secondary px-3 py-1.5 rounded-lg font-medium text-sm flex items-center gap-1.5">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M12 4v16m8-8H4" />
+                                    </svg>
+                                    Add Pair
+                                </button>
+                                <button id="batchPairBtn"
+                                    class="btn-primary px-3 py-1.5 rounded-lg font-medium text-sm text-bg-primary flex items-center gap-1.5">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                                    </svg>
+                                    Batch Pair
+                                </button>
+                                <button id="clearAllBtn"
+                                    class="btn-danger px-3 py-1.5 rounded-lg font-medium text-sm flex items-center gap-1.5 opacity-50 pointer-events-none"
+                                    disabled>
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                    Clear All
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- File Pairs Container -->
+                    <div id="filePairsContainer" class="p-4 space-y-3">
+                        <!-- File pairs will be dynamically added here -->
+                    </div>
+
+                    <!-- Empty State -->
+                    <div id="emptyState" class="p-8 text-center hidden">
+                        <div
+                            class="w-14 h-14 mx-auto mb-4 rounded-xl bg-bg-tertiary flex items-center justify-center border border-border">
+                            <svg class="w-7 h-7 text-fg-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                    d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                        </div>
+                        <p class="text-fg-secondary mb-1 font-medium">No file pairs configured</p>
+                        <p class="text-sm text-fg-muted">Use "Add Pair" for individual files or "Batch Pair" for
+                            multiple files</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Sync Modes Section -->
+            <section class="mb-6 animate-fade-up stagger-2">
+                <div class="bg-bg-secondary rounded-2xl border border-border overflow-hidden">
+                    <div class="px-5 py-4 border-b border-border">
+                        <h3 class="font-display font-semibold text-lg text-fg-primary">Synchronization Modes</h3>
+                        <p class="text-sm text-fg-muted mt-0.5">Select one or combine multiple modes</p>
+                    </div>
+
+                    <div class="p-4 grid sm:grid-cols-3 gap-3">
+                        <!-- Fill Empty -->
+                        <div
+                            class="bg-bg-tertiary rounded-xl p-4 border border-border hover:border-status-filled/40 transition-colors group">
+                            <div class="flex items-start justify-between mb-3">
+                                <div class="w-9 h-9 rounded-lg bg-status-filled/15 flex items-center justify-center">
+                                    <svg class="w-5 h-5 text-status-filled" fill="none" stroke="currentColor"
+                                        viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                </div>
+                                <div class="mode-toggle" id="modeFillEmpty" data-mode="fillEmpty" role="switch"
+                                    aria-checked="false" tabindex="0" aria-label="Fill Empty Values mode"></div>
+                            </div>
+                            <h4 class="font-semibold text-fg-primary mb-1 text-sm">Fill Empty Values</h4>
+                            <p class="text-xs text-fg-secondary leading-relaxed">Update only empty values when source
+                                has content. Existing translations preserved.</p>
+                        </div>
+
+                        <!-- Add Missing -->
+                        <div
+                            class="bg-bg-tertiary rounded-xl p-4 border border-border hover:border-status-added/40 transition-colors group">
+                            <div class="flex items-start justify-between mb-3">
+                                <div class="w-9 h-9 rounded-lg bg-status-added/15 flex items-center justify-center">
+                                    <svg class="w-5 h-5 text-status-added" fill="none" stroke="currentColor"
+                                        viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                </div>
+                                <div class="mode-toggle" id="modeAddMissing" data-mode="addMissing" role="switch"
+                                    aria-checked="false" tabindex="0" aria-label="Add Missing Keys mode"></div>
+                            </div>
+                            <h4 class="font-semibold text-fg-primary mb-1 text-sm">Add Missing Keys</h4>
+                            <p class="text-xs text-fg-secondary leading-relaxed">Insert keys from source missing in
+                                target. Ensures structural consistency.</p>
+                        </div>
+
+                        <!-- Update Different -->
+                        <div
+                            class="bg-bg-tertiary rounded-xl p-4 border border-border hover:border-status-updated/40 transition-colors group">
+                            <div class="flex items-start justify-between mb-3">
+                                <div class="w-9 h-9 rounded-lg bg-status-updated/15 flex items-center justify-center">
+                                    <svg class="w-5 h-5 text-status-updated" fill="none" stroke="currentColor"
+                                        viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                </div>
+                                <div class="mode-toggle" id="modeUpdateDiff" data-mode="updateDiff" role="switch"
+                                    aria-checked="false" tabindex="0" aria-label="Update Different Values mode"></div>
+                            </div>
+                            <h4 class="font-semibold text-fg-primary mb-1 text-sm">Update Different Values</h4>
+                            <p class="text-xs text-fg-secondary leading-relaxed">Update values that differ from source.
+                                Align target with master version.</p>
+                        </div>
+                    </div>
+
+                    <div
+                        class="px-5 py-4 border-t border-border bg-bg-tertiary/30 flex flex-wrap items-center justify-between gap-3">
+                        <div class="flex items-center gap-3">
+                            <span class="text-xs text-fg-muted">Active:</span>
+                            <div id="activeModesDisplay" class="flex gap-1.5">
+                                <span class="text-xs text-fg-dim italic">None</span>
+                            </div>
+                        </div>
+                        <button id="analyzeBtn"
+                            class="btn-primary px-5 py-2 rounded-lg font-semibold text-sm text-bg-primary disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none"
+                            disabled>
+                            Analyze Files
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Statistics Section -->
+            <section id="statsSection" class="mb-6 hidden">
+                <div class="bg-bg-secondary rounded-2xl border border-border overflow-hidden animate-fade-up">
+                    <div class="px-5 py-4 border-b border-border">
+                        <h3 class="font-display font-semibold text-lg text-fg-primary">Synchronization Statistics</h3>
+                    </div>
+
+                    <div class="p-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div class="bg-bg-tertiary rounded-xl p-4 text-center border border-border">
+                            <div class="text-2xl font-bold text-fg-primary mb-0.5" id="statTotal">0</div>
+                            <div class="text-xs text-fg-secondary">Total Changes</div>
+                        </div>
+                        <div class="bg-bg-tertiary rounded-xl p-4 text-center border border-border">
+                            <div class="text-2xl font-bold text-status-filled mb-0.5" id="statFilled">0</div>
+                            <div class="text-xs text-fg-secondary">Fill Empty</div>
+                        </div>
+                        <div class="bg-bg-tertiary rounded-xl p-4 text-center border border-border">
+                            <div class="text-2xl font-bold text-status-added mb-0.5" id="statAdded">0</div>
+                            <div class="text-xs text-fg-secondary">Add Missing</div>
+                        </div>
+                        <div class="bg-bg-tertiary rounded-xl p-4 text-center border border-border">
+                            <div class="text-2xl font-bold text-status-updated mb-0.5" id="statUpdated">0</div>
+                            <div class="text-xs text-fg-secondary">Update Values</div>
+                        </div>
+                    </div>
+
+                    <div class="px-5 py-3 border-t border-border bg-bg-tertiary/30">
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <div class="flex items-center gap-4">
+                                <div class="flex items-center gap-1.5">
+                                    <span class="w-2.5 h-2.5 rounded-full bg-accent"></span>
+                                    <span class="text-xs text-fg-secondary">Apply: <span id="statToApply"
+                                            class="font-semibold text-fg-primary">0</span></span>
+                                </div>
+                                <div class="flex items-center gap-1.5">
+                                    <span class="w-2.5 h-2.5 rounded-full bg-status-skip"></span>
+                                    <span class="text-xs text-fg-secondary">Skip: <span id="statSkipped"
+                                            class="font-semibold text-fg-primary">0</span></span>
+                                </div>
+                            </div>
+                            <div class="flex gap-2">
+                                <button id="applyAllBtn"
+                                    class="btn-secondary px-3 py-1.5 rounded-lg font-medium text-xs">
+                                    Apply All
+                                </button>
+                                <button id="skipAllBtn"
+                                    class="btn-secondary px-3 py-1.5 rounded-lg font-medium text-xs">
+                                    Skip All
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Preview Section -->
+            <section id="previewSection" class="mb-6 hidden">
+                <div class="bg-bg-secondary rounded-2xl border border-border overflow-hidden animate-fade-up">
+                    <div class="px-5 py-4 border-b border-border">
+                        <h3 class="font-display font-semibold text-lg text-fg-primary">Preview Changes</h3>
+                        <p class="text-sm text-fg-muted mt-0.5">Review and approve each change before synchronization
+                        </p>
+                    </div>
+
+                    <div id="previewContainer" class="p-4 space-y-3">
+                        <!-- Preview panels rendered here -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Actions Section -->
+            <section id="actionsSection" class="hidden">
+                <div class="bg-bg-secondary rounded-2xl border border-border p-5 animate-fade-up">
+                    <div class="flex flex-wrap items-center justify-between gap-4">
+                        <div>
+                            <h3 class="font-display font-semibold text-lg text-fg-primary">Export Results</h3>
+                            <p class="text-sm text-fg-muted mt-0.5">Download synchronized files and detailed reports</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button id="downloadZipBtn"
+                                class="btn-primary px-4 py-2 rounded-lg font-semibold text-sm text-bg-primary flex items-center gap-1.5">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                </svg>
+                                Download ZIP
+                            </button>
+                            <button id="downloadExcelBtn"
+                                class="btn-secondary px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-1.5">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                Excel Report
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="border-t border-border mt-auto">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
+                <div class="flex flex-wrap items-center justify-between gap-3 text-xs text-fg-muted">
+                    <p>All processing happens locally in your browser. No data uploaded or stored externally.</p>
+                    <div class="flex items-center gap-3">
+                        <span>Built for .NET developers</span>
+                        <span class="w-1 h-1 rounded-full bg-fg-dim"></span>
+                        <span>RESX Synchronization</span>
+                    </div>
+                </div>
+                <div class="mt-4 pt-4 border-t border-border/50 text-center">
+                    <p class="text-xs text-fg-dim">
+                        Developed by
+                        <a href="https://github.com/aditkw43" target="_blank" rel="noopener noreferrer"
+                            class="footer-link font-medium text-fg-muted hover:text-accent">
+                            Kahfi
+                        </a>
+                        <span class="mx-1.5 text-fg-dim">|</span>
+                        <a href="https://github.com/aditkw43" target="_blank" rel="noopener noreferrer"
+                            class="footer-link text-fg-muted hover:text-accent">
+                            github.com/aditkw43
+                        </a>
+                    </p>
+                </div>
+            </div>
+        </footer>
     </div>
 
-    <div class="main-content">
+    <!-- Batch Pair Modal -->
+    <div id="batchModal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true"
+        aria-labelledby="batchModalTitle">
+        <div class="modal-backdrop absolute inset-0" id="modalBackdrop"></div>
+        <div class="relative min-h-full flex items-center justify-center p-4">
+            <div class="bg-bg-secondary rounded-2xl border border-border w-full max-w-lg shadow-2xl animate-scale-in">
+                <!-- Modal Header -->
+                <div class="px-5 py-4 border-b border-border flex items-center justify-between">
+                    <div>
+                        <h3 id="batchModalTitle" class="font-display font-semibold text-lg text-fg-primary">Batch Pair
+                            Files</h3>
+                        <p class="text-sm text-fg-muted mt-0.5">Upload multiple files and assign them automatically</p>
+                    </div>
+                    <button id="closeModalBtn"
+                        class="w-8 h-8 rounded-lg bg-bg-tertiary border border-border flex items-center justify-center text-fg-muted hover:text-fg-primary hover:border-border-active transition-colors"
+                        aria-label="Close modal">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
 
-        <div id="globalDropZone" class="global-drop-zone">
-            Drag & Drop multiple .resx files here
-        </div>
+                <!-- Modal Body -->
+                <div class="p-5">
+                    <!-- File Role Selection -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-fg-secondary mb-2">Assign files as:</label>
+                        <div class="flex gap-3">
+                            <label class="flex-1 cursor-pointer">
+                                <input type="radio" name="fileRole" value="source" class="sr-only peer">
+                                <div
+                                    class="px-4 py-2.5 rounded-lg border border-border bg-bg-tertiary text-center transition-all peer-checked:border-accent peer-checked:bg-accent-glow peer-checked:text-accent peer-focus-visible:ring-2 peer-focus-visible:ring-accent">
+                                    <span class="font-medium text-sm">Source Files</span>
+                                </div>
+                            </label>
+                            <label class="flex-1 cursor-pointer">
+                                <input type="radio" name="fileRole" value="target" class="sr-only peer">
+                                <div
+                                    class="px-4 py-2.5 rounded-lg border border-border bg-bg-tertiary text-center transition-all peer-checked:border-accent peer-checked:bg-accent-glow peer-checked:text-accent peer-focus-visible:ring-2 peer-focus-visible:ring-accent">
+                                    <span class="font-medium text-sm">Target Files</span>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
 
-        <div id="pairContainer" class="pair-container"></div>
+                    <!-- Drop Zone -->
+                    <div id="batchDropZone" class="drop-zone rounded-xl p-6 text-center cursor-pointer mb-4">
+                        <input type="file" id="batchFileInput" accept=".resx" multiple class="hidden">
+                        <div id="batchDropContent">
+                            <svg class="w-10 h-10 mx-auto mb-3 text-fg-muted" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                            </svg>
+                            <p class="text-sm text-fg-secondary mb-1">Drag and drop RESX files here</p>
+                            <p class="text-xs text-fg-muted">or click to browse</p>
+                        </div>
+                    </div>
 
-        <button id="addPairBtn" class="btn btn-outline btn-block">
-            + Add Pair
-        </button>
+                    <!-- Selected Files List -->
+                    <div id="batchFilesList" class="hidden mb-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-medium text-fg-secondary">Selected Files</span>
+                            <button id="clearBatchFilesBtn"
+                                class="text-xs text-fg-muted hover:text-status-error transition-colors">Clear
+                                all</button>
+                        </div>
+                        <div id="batchFilesContainer" class="max-h-40 overflow-y-auto space-y-1.5">
+                            <!-- Files listed here -->
+                        </div>
+                    </div>
 
-        <button id="clearAllBtn" class="btn btn-outline btn-block">
-            Clear All
-        </button>
+                    <!-- Validation Message -->
+                    <div id="batchValidationMsg"
+                        class="hidden p-3 rounded-lg bg-status-error/10 border border-status-error/20">
+                        <p class="text-sm text-status-error"></p>
+                    </div>
+                </div>
 
-        <div class="btn-group">
-            <button id="processBtn" class="btn btn-primary btn-block">
-                Process All Files
-            </button>
-        </div>
-
-        <div id="globalStatus"></div>
-
-        <div id="resultsArea" class="results-container">
-            <h2>Processing Results</h2>
-            <div id="resultsContent"></div>
-
-            <div class="btn-group" style="margin-top: 1rem;">
-                <button id="downloadZipBtn" class="btn btn-success btn-block">
-                    Download All as ZIP
-                </button>
+                <!-- Modal Footer -->
+                <div class="px-5 py-4 border-t border-border bg-bg-tertiary/30 flex justify-end gap-2">
+                    <button id="cancelBatchBtn"
+                        class="btn-secondary px-4 py-2 rounded-lg font-medium text-sm">Cancel</button>
+                    <button id="submitBatchBtn"
+                        class="btn-primary px-4 py-2 rounded-lg font-semibold text-sm text-bg-primary disabled:opacity-40 disabled:cursor-not-allowed"
+                        disabled>
+                        Add Files
+                    </button>
+                </div>
             </div>
         </div>
-
     </div>
-</div>
 
-<div id="uploadModal" class="modal-overlay hidden">
-    <div class="modal">
-        <h2>Upload Mode</h2>
-        <p>Select how you want to assign the dropped files.</p>
+    <!-- Global Loading Overlay -->
+    <div id="loadingOverlay"
+        class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[9999] hidden">
+        <div
+            class="bg-bg-secondary border border-border rounded-xl px-8 py-6 flex flex-col items-center gap-4 shadow-2xl">
 
-        <div class="modal-actions">
-            <button id="modalSourceBtn" class="btn btn-primary">
-                Upload as Source
-            </button>
-            <button id="modalTargetBtn" class="btn btn-outline">
-                Upload as Target
-            </button>
+            <div class="w-10 h-10 border-4 border-accent border-t-transparent rounded-full animate-spin"></div>
+
+            <p id="loadingText" class="text-sm text-fg-secondary font-medium">
+                Processing...
+            </p>
         </div>
-
-        <button id="modalCloseBtn" class="modal-close">&times;</button>
     </div>
-</div>
 
-<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
-<script src="app.js"></script>
+    <script src="app.js"></script>
 </body>
+
 </html>
