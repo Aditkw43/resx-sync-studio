@@ -109,34 +109,51 @@ const RESXParser = {
         const newDoc = originalDoc.cloneNode(true);
         const root = newDoc.documentElement;
 
+        const dataNodes = Array.from(root.querySelectorAll("data"));
+        const nodeMap = new Map();
+
+        for (const node of dataNodes) {
+            const name = node.getAttribute("name");
+            if (name) nodeMap.set(name, node);
+        }
+
         resources.forEach((resource, key) => {
-            let dataNode = root.querySelector(`data[name="${CSS.escape(key)}"]`);
+            let dataNode = nodeMap.get(key);
 
-            if (dataNode) {
-                // UPDATE VALUE ONLY
-                let valueNode = dataNode.querySelector('value');
-                if (!valueNode) {
-                    valueNode = newDoc.createElement('value');
-                    dataNode.appendChild(valueNode);
-                }
+            if (!dataNode) {
+                dataNode = newDoc.createElement("data");
+                dataNode.setAttribute("name", key);
+                root.appendChild(dataNode);
+                nodeMap.set(key, dataNode);
+            }
 
-                valueNode.textContent = resource.value;
+            let valueNode = dataNode.querySelector("value");
+            if (!valueNode) {
+                valueNode = newDoc.createElement("value");
+                dataNode.appendChild(valueNode);
+            }
 
+            const value = resource.value ?? "";
+            valueNode.textContent = value;
+
+            if (value.trim() === "") {
+                dataNode.setAttribute(
+                    "type",
+                    "System.Resources.ResXNullRef, System.Windows.Forms"
+                );
+                dataNode.removeAttribute("xml:space");
             } else {
-                // ADD MISSING — append minimal structure
-                const newDataNode = newDoc.createElement('data');
-                newDataNode.setAttribute('name', key);
-                newDataNode.setAttribute('xml:space', 'preserve');
-
-                const valueNode = newDoc.createElement('value');
-                valueNode.textContent = resource.value;
-
-                newDataNode.appendChild(valueNode);
-                root.appendChild(newDataNode);
+                dataNode.removeAttribute("type");
+                dataNode.setAttribute("xml:space", "preserve");
             }
         });
 
-        return serializer.serializeToString(newDoc);
+        const xmlContent = serializer.serializeToString(newDoc);
+        if (!xmlContent.trim().startsWith("<?xml")) {
+            return `<?xml version="1.0" encoding="utf-8"?>\n${xmlContent}`;
+        }
+
+        return xmlContent;
     }
 };
 
@@ -199,16 +216,19 @@ const SyncEngine = {
 
     applyChanges(sourceResources, targetResources, changes) {
         const newTarget = new Map();
+
         targetResources.forEach((value, key) => {
             newTarget.set(key, { ...value });
         });
 
-        changes.forEach(change => {
-            if (change.action !== 'apply') return;
+        for (const change of changes) {
+
+            if (change.action !== 'apply') continue;
+
+            const source = sourceResources.get(change.key);
+            if (!source || source.value === undefined) continue;
 
             if (change.type === 'add-missing') {
-                const source = sourceResources.get(change.key);
-                if (!source) return;
 
                 newTarget.set(change.key, {
                     name: source.name,
@@ -218,14 +238,16 @@ const SyncEngine = {
                 });
 
             } else {
+
                 const existing = newTarget.get(change.key);
-                if (!existing) return;
+                if (!existing) continue;
+
                 newTarget.set(change.key, {
                     ...existing,
-                    value: change.sourceValue
+                    value: source.value
                 });
             }
-        });
+        }
 
         return newTarget;
     }
@@ -1079,88 +1101,43 @@ async function downloadZip() {
 
     showLoading("Generating ZIP file...");
 
-    await new Promise(resolve => setTimeout(resolve, 50));
-
     const zip = new JSZip();
-    const results = [];
+    let hasAnyChanges = false;
 
     for (const pair of AppState.filePairs) {
 
-        if (!pair.targetFile || !pair.sourceFile) {
-            results.push({
-                pairId: pair.id,
-                filename: pair.targetFile?.name || "Missing file",
-                changes: [],
-                xmlString: null,
-                error: "Incomplete pair"
-            });
-            continue;
-        }
+        if (!pair.targetFile || !pair.sourceFile) continue;
 
-        const fillChanges = AppState.changes.filter(c =>
-            c.pairId === pair.id &&
-            c.type === "fill-empty" &&
-            c.action === "apply"
+        const appliedChanges = (pair.changes || []).filter(
+            c => c.action === "apply"
         );
 
-        if (!fillChanges.length) {
-            results.push({
-                pairId: pair.id,
-                filename: pair.targetFile.name,
-                changes: [],
-                xmlString: pair.targetFile.content,
-                error: null
-            });
+        if (appliedChanges.length === 0) {
             continue;
         }
 
-        let updatedText = pair.targetFile.content;
+        hasAnyChanges = true;
 
-        for (const change of fillChanges) {
+        const patchedXml = patchResx(
+            pair.targetFile.content,
+            appliedChanges
+        );
 
-            const escapedKey = escapeRegex(change.key);
-            const sourceValue = escapeXml(change.sourceValue || "");
-
-            const selfClosingRegex = new RegExp(
-                `(<data[^>]*name="${escapedKey}"[^>]*>[\\s\\S]*?)<value\\s*/>`,
-                "m"
-            );
-
-            if (selfClosingRegex.test(updatedText)) {
-                updatedText = updatedText.replace(
-                    selfClosingRegex,
-                    `$1<value>${sourceValue}</value>`
-                );
-            } else {
-                const emptyValueRegex = new RegExp(
-                    `(<data[^>]*name="${escapedKey}"[^>]*>[\\s\\S]*?<value>)(\\s*)(<\\/value>)`,
-                    "m"
-                );
-
-                updatedText = updatedText.replace(
-                    emptyValueRegex,
-                    `$1${sourceValue}$3`
-                );
-            }
-        }
-
-        results.push({
-            pairId: pair.id,
-            filename: pair.targetFile.name,
-            changes: fillChanges,
-            xmlString: updatedText,
-            error: null
-        });
-
-        zip.file(pair.targetFile.name, updatedText);
+        zip.file(pair.targetFile.name, patchedXml);
     }
 
-    const content = await zip.generateAsync({ type: "blob" });
+    if (!hasAnyChanges) {
+        hideLoading();
+        alert("No applied changes to export.");
+        return;
+    }
 
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(content);
-    link.download = "resx_batch_output.zip";
-    link.click();
+    const content = await zip.generateAsync({
+        type: "blob",
+        compression: "STORE"
+    });
+
+    downloadBlob(content, "resx_batch_output.zip");
 
     hideLoading();
 }
@@ -1361,6 +1338,64 @@ function parseAndAssign(pair, file, type) {
         pair.targetResources = resources;
         pair.targetDoc = doc;
     }
+}
+
+function patchResx(xml, changes) {
+    if (!changes?.length) return xml;
+
+    for (const { key, sourceValue } of changes) {
+        if (!key) continue;
+
+        const dataRegex = new RegExp(
+            `(<data[^>]*name="${escapeRegex(key)}"[^>]*>)([\\s\\S]*?)(<\\/data>)`,
+            "m"
+        );
+
+        xml = xml.replace(dataRegex, (full, openTag, inner, closeTag) => {
+            const value = sourceValue ?? "";
+            const isEmpty = value.trim() === "";
+
+            // Remove existing attributes
+            openTag = openTag
+                .replace(/\stype="System\.Resources\.ResXNullRef,[^"]*"/, "")
+                .replace(/\sxml:space="preserve"/, "");
+
+            // Append correct attribute at end
+            if (isEmpty) {
+                openTag = openTag.replace(
+                    />$/,
+                    ` type="System.Resources.ResXNullRef, System.Windows.Forms">`
+                );
+            } else {
+                openTag = openTag.replace(
+                    />$/,
+                    ` xml:space="preserve">`
+                );
+            }
+
+            // Replace <value> (handles full & self-closing)
+            if (/<value[^>]*\/>/.test(inner)) {
+                inner = inner.replace(
+                    /<value[^>]*\/>/,
+                    `<value>${escapeXml(value)}</value>`
+                );
+            } else if (/<value[^>]*>[\s\S]*?<\/value>/.test(inner)) {
+                inner = inner.replace(
+                    /<value[^>]*>[\s\S]*?<\/value>/,
+                    (v) => {
+                        const indent = (v.match(/^(\s*)<value/) || ["", ""])[1];
+                        return `${indent}<value>${escapeXml(value)}</value>`;
+                    }
+                );
+            } else {
+                inner += `\n  <value>${escapeXml(value)}</value>\n`;
+            }
+
+            return openTag + inner + closeTag;
+        });
+    }
+
+    return xml;
 }
 
 // ============================================
