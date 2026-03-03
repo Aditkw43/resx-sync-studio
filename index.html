@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>RESX Batch Sync Tool</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="container">
+
+    <div class="header">
+        <h1>RESX Batch Sync Tool</h1>
+        <p>Drag multiple files and auto match by filename.</p>
+    </div>
+
+    <div class="main-content">
+
+        <div id="globalDropZone" class="global-drop-zone">
+            Drag & Drop multiple .resx files here
+        </div>
+
+        <div id="pairContainer" class="pair-container"></div>
+
+        <button id="addPairBtn" class="btn btn-outline btn-block">
+            + Add Pair
+        </button>
+
+        <button id="clearAllBtn" class="btn btn-outline btn-block">
+            Clear All
+        </button>
+
+        <div class="btn-group">
+            <button id="processBtn" class="btn btn-primary btn-block">
+                Process All Files
+            </button>
+        </div>
+
+        <div id="globalStatus"></div>
+
+        <div id="resultsArea" class="results-container">
+            <h2>Processing Results</h2>
+            <div id="resultsContent"></div>
+
+            <div class="btn-group" style="margin-top: 1rem;">
+                <button id="downloadZipBtn" class="btn btn-success btn-block">
+                    Download All as ZIP
+                </button>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<div id="uploadModal" class="modal-overlay hidden">
+    <div class="modal">
+        <h2>Upload Mode</h2>
+        <p>Select how you want to assign the dropped files.</p>
+
+        <div class="modal-actions">
+            <button id="modalSourceBtn" class="btn btn-primary">
+                Upload as Source
+            </button>
+            <button id="modalTargetBtn" class="btn btn-outline">
+                Upload as Target
+            </button>
+        </div>
+
+        <button id="modalCloseBtn" class="modal-close">&times;</button>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
